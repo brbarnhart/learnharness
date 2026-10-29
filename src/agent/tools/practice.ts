@@ -23,7 +23,8 @@ import { findTool } from "./find.ts";
 import { grepTool } from "./grep.ts";
 import { jobTools, type JobToolContext } from "./jobs.ts";
 import { proberGraphTools, type GraphToolContext } from "./graph.ts";
-import { activeProblemOf } from "../../core/native-messages.ts";
+import { atlasPracticeKey, type FoldedAtlas } from "../../core/atlas.ts";
+import { activeProblemOf, type AtlasContextPick } from "../../core/native-messages.ts";
 import type { LhMessage } from "../../core/native-messages.ts";
 import { concludeResult, invalidInputResult, problemResult } from "../tool-execute.ts";
 import { healEncodedArguments, healToolRecord } from "./heal.ts";
@@ -44,6 +45,12 @@ export interface PracticeToolContext {
 	 *  Each absent context (tests) = absent from the registry. */
 	graph?: GraphToolContext;
 	jobs?: JobToolContext;
+	/** Atlas practice. Present only when the session has an atlas-context
+	 *  marker. The read is the stored atlas, including a wrong one. */
+	atlas?: {
+		read: () => FoldedAtlas;
+		picks: () => readonly AtlasContextPick[];
+	};
 }
 
 /** TURN-SCOPED GATE STATE (the BKT incident, 2026-10-05): the gates used
@@ -87,16 +94,77 @@ export const problemInputObject = Type.Object({
 				"Names are normalized to ids at the seam; an unknown proposition is rejected.",
 		}),
 	),
-	modelSolution: Type.String({
-		description: "REQUIRED — the full solution, moves in order, committed BEFORE the learner sees the problem. This IS the reveal — conclude shows it verbatim; never re-author it.",
-	}),
+	atlasDemand: Type.Optional(
+		Type.Union(
+			[
+				Type.Object({
+					type: Type.Literal("redraw"),
+					pathwayId: Type.String({ description: "A pathway id from this session's atlas picks." }),
+				}),
+				Type.Object({
+					type: Type.Literal("lesion"),
+					populationId: Type.String({ description: "A population id from this session's atlas picks." }),
+				}),
+			],
+			{
+				description:
+					"Atlas practice only. Set this and omit modelSolution. The server commits the pathway readout or the lesion query as the answer key and ignores a solution you write.",
+			},
+		),
+	),
+	modelSolution: Type.Optional(
+		Type.String({
+			description:
+				"REQUIRED unless atlasDemand is set — the full solution, moves in order, committed BEFORE the learner sees the problem. This IS the reveal — conclude shows it verbatim; never re-author it. On an atlas demand, omit this field.",
+		}),
+	),
 });
 
 export type ProblemInput = Static<typeof problemInputObject>;
 
+/** Names become ids. An empty list becomes an absent target. May return a new object. */
+function normalizeProblemTarget(healed: unknown, graphNodes?: PracticeToolContext["graphNodes"]): unknown {
+	if (!graphNodes) {
+		const bare = (healed as { target?: unknown }).target;
+		return Array.isArray(bare) && bare.length === 0
+			? { ...(healed as Record<string, unknown>), target: undefined }
+			: healed;
+	}
+	const target = (healed as { target?: unknown }).target;
+	if (!Array.isArray(target) || target.length === 0) {
+		return { ...(healed as Record<string, unknown>), target: undefined };
+	}
+	const list = graphNodes();
+	const normalized = target.map((t) => (typeof t === "string" ? (resolveTargetId(t, list) ?? t) : t));
+	if (normalized.every((t, i) => t === target[i])) return healed;
+	return { ...(healed as Record<string, unknown>), target: normalized };
+}
+
+/**
+ * The persisted assistant message keeps the original arguments object.
+ * A new object returned from prepareArguments is what execute sees, and
+ * is not what the record stores. The atlas key is written onto both.
+ */
+function stampAtlasSolution(
+	original: unknown,
+	working: unknown,
+	atlas: PracticeToolContext["atlas"],
+): void {
+	if (!atlas || typeof working !== "object" || working === null) return;
+	const demand = (working as { atlasDemand?: unknown }).atlasDemand;
+	if (demand === undefined) return;
+	const resolved = atlasPracticeKey(atlas.read(), atlas.picks(), demand);
+	if (!resolved.ok) return;
+	(working as Record<string, unknown>).modelSolution = resolved.key;
+	if (original !== working && typeof original === "object" && original !== null && !Array.isArray(original)) {
+		(original as Record<string, unknown>).modelSolution = resolved.key;
+	}
+}
+
 export function problemTool(
 	gate: PracticeGate,
 	graphNodes?: PracticeToolContext["graphNodes"],
+	atlas?: PracticeToolContext["atlas"],
 ): AgentTool<typeof problemInputObject> {
 	return {
 		name: "problem",
@@ -105,7 +173,8 @@ export function problemTool(
 			"Pose one practice problem. Ends the turn — the learner works in the thinking field; their thinking " +
 			"traces and answer commits arrive back as labeled messages. The modelSolution rides this call's " +
 			"arguments and stays hidden from the learner until you conclude (conclude shows it verbatim — the " +
-			"reveal needs no new field). Only one problem may be active — conclude it before posing the next.",
+			"reveal needs no new field). On an atlas practice session, set atlasDemand and omit modelSolution; " +
+			"the server commits the key. Only one problem may be active — conclude it before posing the next.",
 		parameters: problemInputObject,
 		executionMode: "sequential",
 		prepareArguments: (args: unknown) => {
@@ -116,28 +185,28 @@ export function problemTool(
 			// UNTAGGED PROBLEMS (owner round 12): an explicit empty list is
 			// the model saying "no targets" — healed AWAY, so the record's
 			// canonical form is tagged-or-absent, never [].
-			if (!graphNodes) {
-				const bare = (healed as { target?: unknown }).target;
-				return Array.isArray(bare) && bare.length === 0
-					? ({ ...(healed as Record<string, unknown>), target: undefined } as never)
-					: (healed as never);
-			}
-			const target = (healed as { target?: unknown }).target;
-			if (!Array.isArray(target) || target.length === 0) {
-				return { ...(healed as Record<string, unknown>), target: undefined } as never;
-			}
-			const list = graphNodes();
-			const normalized = target.map((t) =>
-				typeof t === "string" ? (resolveTargetId(t, list) ?? t) : t,
-			);
-			if (normalized.every((t, i) => t === target[i])) return healed as never;
-			return { ...(healed as Record<string, unknown>), target: normalized } as never;
+			const working = normalizeProblemTarget(healed, graphNodes);
+			stampAtlasSolution(args, working, atlas);
+			return working as never;
 		},
 		execute: async (_toolCallId, input) => {
 			if (gate.problemActive) {
 				return invalidInputResult("problem", [
 					"a problem is already active — call conclude on it before posing the next one",
 				]);
+			}
+			let atlasKey: string | undefined;
+			if (input.atlasDemand !== undefined) {
+				if (!atlas) {
+					return invalidInputResult("problem", [
+						"atlasDemand is only valid when this session was started from the circuit atlas",
+					]);
+				}
+				const resolved = atlasPracticeKey(atlas.read(), atlas.picks(), input.atlasDemand);
+				if (!resolved.ok) return invalidInputResult("problem", [resolved.error]);
+				atlasKey = resolved.key;
+			} else if (typeof input.modelSolution !== "string") {
+				return invalidInputResult("problem", ["modelSolution is required unless atlasDemand is set"]);
 			}
 			// TARGET VALIDATION (owner round 9, round 12): against the WHOLE
 			// graph, and ONLY when targets are present — absent means an
@@ -155,7 +224,7 @@ export function problemTool(
 				}
 			}
 			gate.problemActive = true;
-			return problemResult();
+			return problemResult(atlasKey);
 		},
 	};
 }
@@ -236,7 +305,7 @@ export function practiceTools(ctx: PracticeToolContext): Record<string, AgentToo
 	// keep their own (target-normalizing) prepareArguments as the composed
 	// inner pass; the double heal is idempotent by construction.
 	return healToolRecord({
-		problem: problemTool(gate, ctx.graphNodes),
+		problem: problemTool(gate, ctx.graphNodes, ctx.atlas),
 		conclude: concludeTool(gate),
 		read: readTool,
 		ls: lsTool,

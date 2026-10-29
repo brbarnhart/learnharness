@@ -18,13 +18,16 @@ export const dynamic = "force-dynamic";
 export default async function NewSessionPage({
 	searchParams,
 }: {
-	searchParams: Promise<{ mode?: string }>;
+	searchParams: Promise<{ mode?: string; domain?: string }>;
 }) {
-	const { mode } = await searchParams;
+	const { mode, domain } = await searchParams;
+	// Practice wins if both are present: a practice session is not a
+	// circuit lesson. Circuit is a teach variant (?domain=circuit).
+	const sessionMode = mode === "practice" ? "practice" : domain === "circuit" ? "circuit" : "teach";
 	return (
 		<NewSession
 			initialConfigured={slotsConfigured(readSettingsRecord()?.models)}
-			mode={mode === "practice" ? "practice" : "teach"}
+			mode={sessionMode}
 		/>
 	);
 }

@@ -3,6 +3,8 @@ import { clearOpeningPrompt, OPENING_PROMPT_FAILURE, stashOpeningPrompt } from "
 interface SessionCreation {
 	title: string;
 	kind?: "practice";
+	/** Circuit lessons are teach sessions. Practice drops a posted domain. */
+	domain?: "circuit";
 	graphContext?: { propositions: readonly { id: string; name: string; statement: string }[] };
 }
 

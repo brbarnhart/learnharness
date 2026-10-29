@@ -16,6 +16,7 @@ import { filterEnabledTools, type EnabledTools } from "../core/pending.ts";
 import type { JobRecord } from "../core/contracts.ts";
 import type { JobStore } from "../core/ports.ts";
 import { jobTools, type DemoInput, type PdfInput, type ResearchInput, type VisualInput } from "./tools/jobs.ts";
+import { atlasListTools, atlasWriteTools } from "./tools/atlas.ts";
 import { planTools, type PlanToolContext } from "./tools/plan.ts";
 import { probeDoneTool, type ProbeDoneContext } from "./tools/probe.ts";
 import { proberGraphTools } from "./tools/graph.ts";
@@ -24,7 +25,7 @@ import { lsTool } from "./tools/ls.ts";
 import { findTool } from "./tools/find.ts";
 import { grepTool } from "./tools/grep.ts";
 import { healToolRecord } from "./tools/heal.ts";
-import type { GraphStore } from "../core/ports.ts";
+import type { AtlasStore, GraphStore } from "../core/ports.ts";
 
 export { jobTools };
 export type { ProbeDoneContext } from "./tools/probe.ts";
@@ -276,6 +277,9 @@ export interface ProberToolContext extends ProbeDoneContext {
 	 *  master switch AND the agent.graphTools toggle (settings-resolution).
 	 *  Absent = the gate is closed, no map tools (tests drive this seam). */
 	graphStore?: GraphStore;
+	/** Circuit teach sessions only. Present = the read-only atlas list.
+	 *  Absence means a general lesson: no atlas tool. */
+	atlasStore?: AtlasStore;
 }
 
 /** The prober's tool set: probe quiz (no nodeId) + ask + the learner-fs
@@ -344,6 +348,9 @@ export function createProberTools(
 				withoutMechanics(enabled),
 			),
 			...done,
+			// Read-only, and only on a circuit session. A settings toggle
+			// cannot drop it: there is no atlas switch in this version.
+			...(ctx.atlasStore ? atlasListTools({ chatId: ctx.chatId, atlasStore: ctx.atlasStore }) : {}),
 		});
 }
 
@@ -400,6 +407,9 @@ export interface TeacherToolContext extends PlanToolContext {
 	spawn: (job: JobRecord, input: ResearchInput | DemoInput | VisualInput | PdfInput) => void;
 	/** Retained search-status seam; research dispatch is available keylessly. */
 	searchAvailable?: () => boolean;
+	/** Circuit teach sessions only. Present = the atlas write tool.
+	 *  Absence means a general lesson: no atlas tool. */
+	atlasStore?: AtlasStore;
 }
 
 /**
@@ -444,23 +454,26 @@ export function createTeacherTools(
 	const quizzing: Record<string, AgentTool<any>> =
 		mechanics === "free" ? { explain: teachExplainToolFor(ctx) } : { quiz: teachQuizToolFor(ctx) };
 	// healToolRecord — same standard as the prober's registry (above).
-	return healToolRecord(
-		filterEnabledTools(
+	return healToolRecord({
+		...filterEnabledTools(
 			{
-			...quizzing,
-			ask_user_question: askUserQuestionTool,
-			// The learner-filesystem set is always-on (user-decided 2026-09,
-			// sources v1): the teacher locates and reads learner-referenced
-			// files on its own terms — nothing auto-injects. Read-only by
-			// construction (fs-shared.ts).
-			read: readTool,
-			ls: lsTool,
-			find: findTool,
-			grep: grepTool,
-			...planTools(ctx),
-			...jobTools({ chatId: ctx.chatId, jobStore: ctx.jobStore, spawn: ctx.spawn, searchAvailable: ctx.searchAvailable }),
-		},
-		withoutMechanics(enabled),
+				...quizzing,
+				ask_user_question: askUserQuestionTool,
+				// The learner-filesystem set is always-on (user-decided 2026-09,
+				// sources v1): the teacher locates and reads learner-referenced
+				// files on its own terms — nothing auto-injects. Read-only by
+				// construction (fs-shared.ts).
+				read: readTool,
+				ls: lsTool,
+				find: findTool,
+				grep: grepTool,
+				...planTools(ctx),
+				...jobTools({ chatId: ctx.chatId, jobStore: ctx.jobStore, spawn: ctx.spawn, searchAvailable: ctx.searchAvailable }),
+			},
+			withoutMechanics(enabled),
 		),
-	);
+		// After the filter so a settings map cannot strip it. Registered
+		// only when this session is a circuit lesson.
+		...(ctx.atlasStore ? atlasWriteTools({ chatId: ctx.chatId, atlasStore: ctx.atlasStore }) : {}),
+	});
 }

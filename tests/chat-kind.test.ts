@@ -43,4 +43,27 @@ describe("session kind (practice sessions, 2026-10-04)", () => {
 		const listed = chatStore.listChats().find((c) => c.id === chat.id);
 		assert.equal(listed?.kind, "teach");
 	});
+
+	it("createChat domain circuit stamps domain and leaves kind absent", () => {
+		const chat = chatStore.createChat("circuit session", undefined, "circuit");
+		assert.equal("kind" in chat, false);
+		assert.equal(chat.domain, "circuit");
+		const listed = chatStore.listChats().find((c) => c.id === chat.id);
+		assert.equal(listed?.kind, "teach");
+		assert.equal(listed?.domain, "circuit");
+	});
+
+	it("a practice create ignores a circuit domain", () => {
+		const chat = chatStore.createChat("practice over circuit", "practice", "circuit");
+		assert.equal(chat.kind, "practice");
+		assert.equal("domain" in chat, false);
+	});
+
+	it("a plain session carries no domain field", () => {
+		const chat = chatStore.createChat("plain domain check");
+		assert.equal("domain" in chat, false);
+		const listed = chatStore.listChats().find((c) => c.id === chat.id);
+		assert.ok(listed);
+		assert.equal("domain" in listed, false);
+	});
 });

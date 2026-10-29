@@ -1,0 +1,27 @@
+{
+	"id": "chat_atlas_context_marker",
+	"title": "Atlas marker",
+	"createdAt": "2026-10-25T16:51:59.976Z",
+	"updatedAt": "2026-10-25T16:51:59.977Z",
+	"messages": [
+		{
+			"id": "msg_mvo2f7u1_c2c41358",
+			"role": "custom",
+			"customType": "atlas-context",
+			"content": "[Session context] — picked from the circuit atlas when starting this session:\n\nRecords (id — name). Pose redraw and lesion problems with atlasDemand and omit modelSolution. The server commits the answer key.\n- [pwy_example] Example pathway (redraw)",
+			"display": true,
+			"details": {
+				"picks": [
+					{
+						"id": "pwy_example",
+						"name": "Example pathway",
+						"role": "redraw"
+					}
+				]
+			},
+			"timestamp": 1792947119977
+		}
+	],
+	"kind": "practice",
+	"version": 1
+}

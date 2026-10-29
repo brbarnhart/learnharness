@@ -14,6 +14,11 @@ import type {
 	ChatRecord,
 	ChatSettings,
 	ChatSummary,
+	AtlasModuleLine,
+	AtlasPathwayLine,
+	AtlasPopulationLine,
+	AtlasProjectionLine,
+	AtlasLedgers,
 	GraphChain,
 	GraphNode,
 	JobKind,
@@ -33,8 +38,9 @@ import type { UserSettings } from "./settings.ts";
 export interface ChatStore {
 	/** Create a session record (persisted immediately). */
 	/** Create a session record; kind "practice" marks a practice session
-	 *  (absent = teach, the default). */
-	createChat(title: string, kind?: "practice"): ChatRecord;
+	 *  (absent = teach, the default). domain "circuit" marks a circuit
+	 *  teach session. A practice create ignores domain. */
+	createChat(title: string, kind?: "practice", domain?: "circuit"): ChatRecord;
 	/** The full record, or null if unknown id / corrupt file. */
 	getChat(id: string): ChatRecord | null;
 	/** All sessions, newest activity first (the sidebar's list view). */
@@ -126,6 +132,19 @@ export interface GraphStore {
 		coverage?: CoverageEntry[];
 		checkpoints?: SessionCheckpoint[];
 	}): void;
+}
+
+// ─── AtlasStore — the circuit atlas ledgers (data/atlas) ─────────────────────
+// Append-only, like the graph ledgers. Folding, lesion, and write checks
+// live in core/atlas.ts. This port only appends and returns raw lines.
+
+export interface AtlasStore {
+	appendModule(line: AtlasModuleLine): void;
+	appendPopulation(line: AtlasPopulationLine): void;
+	appendProjection(line: AtlasProjectionLine): void;
+	appendPathway(line: AtlasPathwayLine): void;
+	/** Raw JSON lines in append order. Unparseable lines are omitted. */
+	readLedgers(): AtlasLedgers;
 }
 
 // ─── JobStore — background sub-agent jobs (data/jobs) ─────────────────────────

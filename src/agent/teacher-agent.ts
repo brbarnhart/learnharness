@@ -3,6 +3,8 @@ import type { AgentEvent, AgentMessage, AgentTool } from "@earendil-works/pi-age
 import { invalidInputResult, questionResult } from "./tool-execute.ts";
 import { providerEventObserver } from "./provider-events.ts";
 import type { Usage } from "@earendil-works/pi-ai";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { PATHS } from "../../config.ts";
 import { APP_IDENTITY, piEngineFor, type PiEngine } from "./models.ts";
 import { effectivePromptSegments } from "./prompt-segments.ts";
@@ -45,6 +47,11 @@ import { usageWasAdmitted } from "./subscription-request-cycle.ts";
  * ONLY numeric-prefix files load — the loader enforces the convention, so
  * non-fragment documentation (README.md, …) can live in the directories
  * without ever leaking into the model's prompt.
+ *
+ * Circuit lessons are the exception that stays off that loader.
+ * teacher/circuit.md has no numeric prefix. composeInstructions appends
+ * it only when opts.circuit is set and the agent is the teacher. A
+ * numeric rename would inject circuit doctrine into every lesson.
  */
 
 /** Which agent's prompt directory to compose. Practice (2026-10-04)
@@ -72,13 +79,39 @@ export type AgentKind = "prober" | "teacher" | "practice";
  *  tests/prompt-overrides.test.ts). Overrides are a static-file read
  *  through config paths, not request state — the store import carries no
  *  chat/job machinery. */
-export function composeInstructions(kind: AgentKind, switches?: Record<string, boolean>): string {
+/** teacher/circuit.md — off the numeric loader. Read only for a circuit teach. */
+const CIRCUIT_PROMPT_FILE = path.join(PATHS.root, "src", "agent", "prompts", "teacher", "circuit.md");
+/** practice/atlas.md — off the numeric loader. Read only for atlas practice. */
+const ATLAS_PROMPT_FILE = path.join(PATHS.root, "src", "agent", "prompts", "practice", "atlas.md");
+
+function readFragment(file: string): string {
+	try {
+		return fs.readFileSync(file, "utf-8").trim();
+	} catch {
+		return "";
+	}
+}
+
+export function composeInstructions(
+	kind: AgentKind,
+	switches?: Record<string, boolean>,
+	opts?: { circuit?: boolean; atlas?: boolean },
+): string {
 	const segments = effectivePromptSegments(kind, switches ?? {});
-	return segments
+	const body = segments
 		.map((s) => (s.enabled ? s.overrideText! : s.sourceText))
 		.map((t) => t.trim())
 		.filter(Boolean)
 		.join("\n\n---\n\n");
+	// A switches-only call, or a flag that does not match this kind, stays
+	// byte-identical to the numeric composition.
+	const extra =
+		opts?.circuit && kind === "teacher"
+			? readFragment(CIRCUIT_PROMPT_FILE)
+			: opts?.atlas && kind === "practice"
+				? readFragment(ATLAS_PROMPT_FILE)
+				: "";
+	return extra ? `${body}\n\n---\n\n${extra}` : body;
 }
 
 // The switch-free source composition, cached per kind (module-load once).
@@ -121,6 +154,13 @@ export interface AgentBuildOptions {
 	 *  fresh per turn, honoring enabled overrides (switch on + file
 	 *  exists); absent → the cached pure-source composition. */
 	promptSwitches?: Record<string, boolean>;
+	/** Circuit teach sessions append teacher/circuit.md. The file has no
+	 *  numeric prefix, so the fragment loader never includes it. The
+	 *  prober ignores this flag: the fragment is teacher-only. */
+	circuit?: boolean;
+	/** Atlas practice appends practice/atlas.md. The file has no numeric
+	 *  prefix. Teacher and prober ignore this flag. */
+	atlas?: boolean;
 	/** Native conversation identity: the existing persisted chat id, reused
 	 * across reconstructed prober, teacher, and practice Agents.
 	 * Debug: when set AND LH_PROVIDER_EVENTS=1, raw provider stream events
@@ -181,8 +221,9 @@ function baseAgentOptions(kind: AgentKind, opts: AgentBuildOptions, tools: Agent
 	// ("practice" is not a ModelRole) honest about that.
 	const engine = opts.engine ?? piEngineFor(kind as "prober" | "teacher");
 	const stopper = makeQuestionStopper(kind);
-	const systemPrompt = opts.promptSwitches
-		? composeInstructions(kind, opts.promptSwitches)
+	const flagged = opts.circuit || opts.atlas ? { circuit: opts.circuit, atlas: opts.atlas } : undefined;
+	const systemPrompt = opts.promptSwitches || opts.circuit || opts.atlas
+		? composeInstructions(kind, opts.promptSwitches, flagged)
 		: composedInstructions[kind]!;
 	// Debug recorder (owner, 2026-10-04): raw provider events when
 	// LH_PROVIDER_EVENTS=1 and the caller handed a chatId; undefined is

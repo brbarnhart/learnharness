@@ -106,3 +106,32 @@ describe("POST /api/chats — the birth stamp", () => {
 		assert.equal(secondRecord.settings?.model?.id, "gpt-6-luna");
 	});
 });
+
+describe("POST /api/chats — circuit domain", () => {
+	function postBody(body: unknown): Promise<Response> {
+		return POST(new Request("http://test/api/chats", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(body),
+		}));
+	}
+
+	it("domain circuit stamps the record and leaves kind absent", async () => {
+		const res = await postBody({ title: "basal ganglia", domain: "circuit" });
+		assert.equal(res.status, 200);
+		const { id } = (await res.json()) as { id: string };
+		const record = chatStore.getChat(id);
+		assert.ok(record);
+		assert.equal(record.domain, "circuit");
+		assert.equal(record.kind, undefined);
+	});
+
+	it("kind practice drops a posted circuit domain", async () => {
+		const res = await postBody({ title: "drill", kind: "practice", domain: "circuit" });
+		const { id } = (await res.json()) as { id: string };
+		const record = chatStore.getChat(id);
+		assert.ok(record);
+		assert.equal(record.kind, "practice");
+		assert.equal(record.domain, undefined);
+	});
+});

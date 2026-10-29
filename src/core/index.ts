@@ -81,3 +81,11 @@ export * from "./coverage.ts";
 // ONE session→markdown formatter — the extractor's view and the user-facing
 // export share it. Pure, browser-safe.
 export * from "./session-markdown.ts";
+// atlas.ts — the circuit atlas fold, write checks, lesion query, and
+// pathway readout. Pure and browser-safe (no node builtins). The store
+// adapter and the teacher tool live outside this barrel's callers' concern;
+// the study view and practice answer keys call these functions directly.
+export * from "./atlas.ts";
+// atlas-layout.ts — nested-rectangle layout for the /atlas study view.
+// Pure and browser-safe, same as the fold.
+export * from "./atlas-layout.ts";

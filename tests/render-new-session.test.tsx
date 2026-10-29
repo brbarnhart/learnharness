@@ -254,3 +254,33 @@ describe("the practice draft (?mode=practice, 2026-10-04)", () => {
 		assert.deepEqual(body, { title: "orbital mechanics" });
 	});
 });
+
+describe("the circuit draft (?domain=circuit)", () => {
+	it("the shell names a circuit lesson and keeps the probe opening", () => {
+		const html = renderToStaticMarkup(
+			<DraftShell
+				busy={false}
+				text=""
+				onChange={() => {}}
+				onSend={() => {}}
+				mode="circuit"
+			/>,
+		);
+		assert.match(html, /New circuit lesson/);
+		assert.ok(html.includes("The teacher will open by probing what you already know. This lesson can fill the circuit atlas."));
+		assert.match(html, /Which circuit do you want to learn\?/);
+		assert.ok(!html.includes('data-testid="practice-props-chip"'));
+	});
+
+	it("startDraftSession posts domain circuit and no kind", async () => {
+		let body: Record<string, unknown> | null = null;
+		const f = (async (_url: string, init?: RequestInit) => {
+			body = JSON.parse(String(init?.body));
+			return new Response(JSON.stringify({ id: "c12" }), { status: 201 });
+		}) as unknown as typeof fetch;
+		const target = await startDraftSession("the direct pathway", f, "circuit");
+		assert.equal(target, "/chat/c12");
+		assert.equal(readOpeningPrompt("c12"), "the direct pathway");
+		assert.deepEqual(body, { title: "the direct pathway", domain: "circuit" });
+	});
+});

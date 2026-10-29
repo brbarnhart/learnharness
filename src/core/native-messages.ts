@@ -67,6 +67,7 @@ export interface LhMarkerMessage {
 	role: "custom";
 	customType:
 		| "graph-context"
+		| "atlas-context"
 		| "probe-handoff"
 		| "subagent-steer"
 		| "subagent-abort"
@@ -282,6 +283,67 @@ export function newGraphContextMessage(picks: readonly GraphContextPick[], chain
 		content: lines.join("\n"),
 		display: true,
 		details: { propositions: picks, chains },
+		timestamp: Date.now(),
+	};
+}
+
+/** One atlas record named on the atlas-context marker. Names come from the atlas. */
+export interface AtlasContextPick {
+	id: string;
+	name: string;
+	role: "redraw" | "lesion" | "module";
+}
+
+const ATLAS_PICK_ROLES = new Set<AtlasContextPick["role"]>(["redraw", "lesion", "module"]);
+
+/** The first atlas-context marker's picks. Junk entries are dropped. */
+export function atlasContextPicks(messages: readonly { role?: string; customType?: string; details?: unknown }[]): AtlasContextPick[] {
+	for (const message of messages) {
+		if (message.role !== "custom" || message.customType !== "atlas-context") continue;
+		const picks = (message.details as { picks?: unknown } | null)?.picks;
+		if (!Array.isArray(picks)) return [];
+		return picks.filter((pick): pick is AtlasContextPick => {
+			if (typeof pick !== "object" || pick === null) return false;
+			const item = pick as { id?: unknown; name?: unknown; role?: unknown };
+			return typeof item.id === "string" && typeof item.name === "string" && typeof item.role === "string" && ATLAS_PICK_ROLES.has(item.role as AtlasContextPick["role"]);
+		});
+	}
+	return [];
+}
+
+/** True when the record carries an atlas-context marker. */
+export function hasAtlasContext(messages: readonly { role?: string; customType?: string }[]): boolean {
+	return messages.some((message) => message.role === "custom" && message.customType === "atlas-context");
+}
+
+/**
+ * The atlas seed. A practice session lists redraw and lesion picks and
+ * tells the practitioner to pose with atlasDemand. A circuit lesson names
+ * the one module. Neither face includes pathway steps or a lesion result.
+ */
+export function newAtlasContextMessage(picks: readonly AtlasContextPick[]): LhMarkerMessage {
+	const practice = picks.some((pick) => pick.role === "redraw" || pick.role === "lesion");
+	const lines = practice
+		? [
+				"[Session context] — picked from the circuit atlas when starting this session:",
+				"",
+				"Records (id — name). Pose redraw and lesion problems with atlasDemand and omit modelSolution. The server commits the answer key.",
+				...picks.map((pick) => `- [${pick.id}] ${pick.name} (${pick.role})`),
+			]
+		: [
+				"[Session context] — this circuit lesson opens on one atlas module:",
+				"",
+				...picks.map((pick) => `- [${pick.id}] ${pick.name}`),
+				"",
+				"List the atlas for the rest of the circuit.",
+			];
+	return {
+		id: newMessageId(),
+		role: "custom",
+		customType: "atlas-context",
+		content: lines.join("\n"),
+		display: true,
+		details: { picks: picks.map((pick) => ({ id: pick.id, name: pick.name, role: pick.role })) },
 		timestamp: Date.now(),
 	};
 }
@@ -755,7 +817,7 @@ export function nativeInputCause(message: AgentMessage, history: readonly AgentM
 	if (message.role === "custom") {
 		if (["probe-handoff", "subagent-steer", "subagent-abort"].includes(message.customType)) return "automatic";
 		if (["practice-thinking", "practice-next"].includes(message.customType)) return "learner";
-		return ["graph-context", "plan-block", "problem-dismissed", "compaction"].includes(message.customType) ? "neutral" : "unrecognizable";
+		return ["graph-context", "atlas-context", "plan-block", "problem-dismissed", "compaction"].includes(message.customType) ? "neutral" : "unrecognizable";
 	}
 	if (message.role === "toolResult") {
 		if (!(QUESTION_TOOLS as readonly string[]).includes(message.toolName) || message.isError || message.details == null || (message.details as { dismissed?: boolean }).dismissed) return "neutral";

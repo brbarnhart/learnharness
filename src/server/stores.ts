@@ -6,6 +6,7 @@
  * file (and the adapter implementations in src/store/).
  */
 
+import { atlasStore } from "../store/atlas.ts";
 import { chatStore } from "../store/chats.ts";
 import { graphStore } from "../store/graph.ts";
 import { jobStore } from "../store/jobs.ts";
@@ -15,6 +16,7 @@ import { resolveSettings, type EffectiveSettings } from "../core/settings-resolu
 export const stores = {
 	chatStore,
 	graphStore,
+	atlasStore,
 	jobStore,
 	settingsStore,
 };

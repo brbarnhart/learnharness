@@ -48,6 +48,7 @@ const { danglingQuestionOf, activeProblemOf } = await import("../src/core/native
 
 const TEACH = "chat_mv27rrra_feff23b6";
 const PRACTICE = "chat_mv293wv5_10656952";
+const ATLAS = "chat_atlas_context_marker";
 
 function snapshotTree(dir: string): Map<string, Buffer> {
 	const out = new Map<string, Buffer>();
@@ -116,6 +117,7 @@ test("markers: the fixture pair covers EVERY custom-marker kind of the current c
 	// fixture data fails here — extend the fixtures in the same commit.
 	const EXPECTED = [
 		"graph-context",
+		"atlas-context",
 		"probe-handoff",
 		"subagent-steer",
 		"subagent-abort",
@@ -126,7 +128,7 @@ test("markers: the fixture pair covers EVERY custom-marker kind of the current c
 		"compaction",
 	] as const;
 	const seen = new Set<string>();
-	for (const id of [TEACH, PRACTICE]) {
+	for (const id of [TEACH, PRACTICE, ATLAS]) {
 		for (const m of chatStore.getChat(id)!.messages) {
 			if ((m as { role?: string }).role === "custom") seen.add((m as { customType: string }).customType);
 		}

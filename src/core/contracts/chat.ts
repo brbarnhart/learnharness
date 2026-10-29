@@ -27,6 +27,11 @@ import type { EmissionStats } from "./graph.ts";
  *  practice agent, its two tools, no extraction, no graph writes. */
 export type ChatKind = "teach" | "practice";
 
+/** A circuit lesson is still a teach session. Absence means a general
+ *  lesson: no atlas write tool, no circuit prompt. Practice sessions
+ *  never carry this. */
+export type ChatDomain = "circuit";
+
 export interface ChatRecord {
 	id: string;
 	title: string;
@@ -35,6 +40,8 @@ export interface ChatRecord {
 	messages: LhMessage[];
 	/** The session's kind — absent = teach (pre-practice records). */
 	kind?: ChatKind;
+	/** Circuit teach sessions. Absent means a general lesson. */
+	domain?: ChatDomain;
 	/** The session's plan tree (vision §2) — written by plan tools via saveTree. */
 	tree?: PlanTree;
 	/** Append-only usage log (observability, 2026-09): one entry per model
@@ -263,6 +270,9 @@ export interface ChatSummary {
 	updatedAt: string;
 	/** Normalized kind (absent record field reads as teach). */
 	kind: ChatKind;
+	/** Circuit teach sessions. Absent means a general lesson. The list
+	 *  does not invent a domain for records that have none. */
+	domain?: ChatDomain;
 	messageCount: number;
 	/** The session's current phase, derived from the stored plan tree. */
 	phase: Phase3;

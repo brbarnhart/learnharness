@@ -26,6 +26,8 @@ export const PATHS = {
 	/** Chat sessions (AI SDK UIMessage transcripts, one JSON file per chat). */
 	chats: path.join(DATA_ROOT, "chats"),
 	graph: path.join(DATA_ROOT, "graph"),
+	/** Circuit atlas ledgers (modules, populations, projections, pathways). */
+	atlas: path.join(DATA_ROOT, "atlas"),
 	/** Debug artifacts (env-gated): data/debug/provider-events/<chatId>.jsonl
 	 * raw provider stream recordings (src/agent/provider-events.ts). */
 	debug: path.join(DATA_ROOT, "debug"),
@@ -92,6 +94,20 @@ export const RENDER_SETTINGS_FILE = path.join(PATHS.graph, "render-settings.json
  *  graph-family write creates it. positions.json is REBUILDABLE and rides
  *  along unversioned by design (owner ruling). */
 export const GRAPH_FORMAT_FILE = path.join(PATHS.graph, "format.json");
+
+/**
+ * The circuit atlas (src/store/atlas.ts). Line shapes: contracts/atlas.ts.
+ * Separate from the proposition graph. The fold in core/atlas.ts is the read.
+ */
+export const ATLAS_FILES = {
+	modules: path.join(PATHS.atlas, "modules.jsonl"),
+	populations: path.join(PATHS.atlas, "populations.jsonl"),
+	projections: path.join(PATHS.atlas, "projections.jsonl"),
+	pathways: path.join(PATHS.atlas, "pathways.jsonl"),
+} as const;
+
+/** Lazy v1 sidecar for the atlas directory. Absent = v1. */
+export const ATLAS_FORMAT_FILE = path.join(PATHS.atlas, "format.json");
 
 /**
  * THE USER SETTINGS RECORD (settings-storage wave, 2026-09-19): one

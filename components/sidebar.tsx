@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { MenuShell } from "@/components/menu-shell";
 import { DeleteSessionDialog } from "@/components/delete-session-dialog";
 import type { ChatDeleteMode } from "@/src/core";
-import { DumbbellIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, PlusIcon, SearchIcon, SettingsIcon } from "lucide-react";
+import { DumbbellIcon, NetworkIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, PlusIcon, SearchIcon, SettingsIcon, WaypointsIcon } from "lucide-react";
 import { ActivitySection } from "@/components/activity-dock";
 import { CoverageMenuBlock } from "@/components/extraction-coverage";
 import { LhMark } from "@/components/lh-mark";
@@ -659,23 +659,39 @@ function SessionsSidebar() {
 					    with the lights' own edge-inset as the gap. */}
 					{/* Hover mirrors the ghost toggle buttons (owner ask, 2026-09-17):
 					    same size-9 chip geometry, same hover:bg-accent treatment. */}
-					<Hint
-						// Kept (owner, subtlety round 2026-09-25) but to the RIGHT
-						// of the logo, carrying its real shortcut: ⌘G jumps to
-						// the graph view (keyboard-shortcuts routes it to "/",
-						// the same destination as this logo).
-						label="Home"
-						action="jump-graph"
-						side="right"
-					>
-						<Link
-							href="/"
-							aria-label="Home"
-							className="lh-no-drag flex size-9 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50"
+					<div className="flex items-center gap-1">
+						<Hint
+							// Kept (owner, subtlety round 2026-09-25) but to the RIGHT
+							// of the logo, carrying its real shortcut: ⌘G jumps to
+							// the graph view (keyboard-shortcuts routes it to "/",
+							// the same destination as this logo).
+							label="Home"
+							action="jump-graph"
+							side="right"
 						>
-							<LhMark className="size-6" />
-						</Link>
-					</Hint>
+							<Link
+								href="/"
+								aria-label="Home"
+								className="lh-no-drag flex size-9 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50"
+							>
+								<LhMark className="size-6" />
+							</Link>
+						</Hint>
+						<Hint label="Atlas" side="right">
+							<Link
+								href="/atlas"
+								data-testid="atlas-link"
+								aria-label="Atlas"
+								aria-current={pathname === "/atlas" ? "page" : undefined}
+								className={cn(
+									"lh-no-drag flex size-9 shrink-0 items-center justify-center rounded-md transition-colors hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
+									pathname === "/atlas" && "bg-accent text-foreground",
+								)}
+							>
+								<NetworkIcon className="size-4" />
+							</Link>
+						</Hint>
+					</div>
 					<Hint label="Close sidebar" action="toggle-sidebar">
 						<Button
 							variant="ghost"
@@ -689,10 +705,11 @@ function SessionsSidebar() {
 					</Hint>
 				</div>
 
-				{/* Two doors, STACKED (owner round 8, 2026-10-05 — was a
+				{/* Three doors, STACKED (owner round 8, 2026-10-05 — was a
 				    half/half row): full-width rows read cleaner and give the
 				    labels room; teaching keeps the original draft route,
-				    practice carries its mode. */}
+				    circuit is a teach variant (?domain=circuit), practice
+				    carries its mode. */}
 				<div className="mx-3 mb-2 flex flex-col gap-1.5">
 					<button
 						type="button"
@@ -703,6 +720,16 @@ function SessionsSidebar() {
 						<PlusIcon className="size-3" />
 						Teaching
 						<span className="sr-only">create a new teaching session</span>
+					</button>
+					<button
+						type="button"
+						data-testid="new-session-circuit"
+						onClick={() => router.push("/chat/new?domain=circuit")}
+						className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+					>
+						<WaypointsIcon className="size-3" />
+						Circuit
+						<span className="sr-only">create a new circuit lesson</span>
 					</button>
 					<button
 						type="button"

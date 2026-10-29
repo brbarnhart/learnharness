@@ -11,7 +11,7 @@ import { connectionBackgroundAllowed, connectionScopeCurrent, isSubscriptionProv
 import { nativeSubscriptionError } from "../agent/subscription-stream.ts";
 import { chatGPTStreamError } from "../agent/chatgpt-stream.ts";
 import { SubscriptionRequestCycle, type SubscriptionDispatchLifecycle } from "../agent/subscription-request-cycle.ts";
-import { reconstructRequestCause } from "../core/native-messages.ts";
+import { atlasContextPicks, hasAtlasContext, reconstructRequestCause } from "../core/native-messages.ts";
 import { createJobRunner } from "../agent/subagents/runner.ts";
 import { createExtractionPipeline } from "../agent/subagents/extraction.ts";
 import type { ModelRole } from "../../config.ts";
@@ -46,6 +46,7 @@ import { registerTurn, rememberTurnFailure, unregisterTurn } from "./turn-runs.t
 import { persistTurn, triggerExtraction, TurnPersistenceError } from "./turn-service.ts";
 import { hasProbeDone, danglingQuestionOf } from "../core/native-messages.ts";
 import { composeInstructions } from "../agent/teacher-agent.ts";
+import { readAtlas } from "./atlas.ts";
 import { ensureCompacted, kickCompaction, effectiveThresholdTokens } from "./compaction.ts";
 import { catalogContextLimits, refreshConnectionCatalog } from "./model-catalog.ts";
 import { emit } from "../core/events.ts";
@@ -146,6 +147,19 @@ function resolveEngine(role: ModelRole): PiEngine | undefined {
 }
 
 setJobRespawn((jobId) => void jobRunner.runJob(jobId));
+
+/** Token estimate for compaction. Practice uses the practice prompt.
+ *  A circuit teach session counts the circuit fragment. An atlas practice
+ *  session counts the atlas fragment. The probe phase still estimates
+ *  with the teacher prompt, as it did before circuit lessons: the teacher
+ *  prompt is the longer of the two. */
+function estimatedSystemPromptTokens(record: { kind?: string; domain?: string; messages?: { role?: string; customType?: string }[] }): number {
+	const kind = record.kind === "practice" ? "practice" : "teacher";
+	const circuit = record.kind !== "practice" && record.domain === "circuit";
+	const atlas = record.kind === "practice" && hasAtlasContext(record.messages ?? []);
+	const flags = circuit || atlas ? { circuit, atlas } : undefined;
+	return Math.ceil(composeInstructions(kind, undefined, flags).length / 4);
+}
 
 /** The route-facing entry: parse {chatId, input} and run one turn. */
 export async function handleChatRequest(
@@ -266,7 +280,7 @@ export async function handleChatInput(
 				effective.compaction?.thresholdTokens,
 				catalogContextLimits().get(modelIdForCompaction),
 			),
-			systemPromptTokens: Math.ceil(composeInstructions(record.kind === "practice" ? "practice" : "teacher").length / 4),
+			systemPromptTokens: estimatedSystemPromptTokens(record),
 		},
 		chatId,
 	);
@@ -418,6 +432,11 @@ export async function handleChatInput(
 		},
 		restoreAutomatic: (automaticIds, retainedIds) => restoreUncommittedAutomatic(chatId, constructed, automaticIds, retainedIds),
 	});
+	// Circuit lessons are teach sessions. Practice never takes the atlas
+	// write tool or the circuit fragment, even if a caller stamped a domain.
+	// Atlas practice appends its own fragment and a read-only answer key.
+	const circuitTeach = record.kind !== "practice" && record.domain === "circuit";
+	const atlasPractice = record.kind === "practice" && hasAtlasContext(record.messages);
 	const agentOpts: AgentBuildOptions = {
 		engine,
 		callPurpose,
@@ -432,6 +451,8 @@ export async function handleChatInput(
 		// point as the tool delta — the agent layer composes the system
 		// prompt fresh per turn, swapping in any enabled override segments.
 		promptSwitches: effective.agent.prompts,
+		...(circuitTeach ? { circuit: true } : {}),
+		...(atlasPractice ? { atlas: true } : {}),
 	};
 	// PRACTICE BRANCH (owner design, 2026-10-04): a kind:"practice"
 	// session builds the practitioner from turn 1 — no prober→teacher
@@ -461,6 +482,14 @@ export async function handleChatInput(
 							searchAvailable,
 						},
 						...(graphToolsEnabled(effective) ? { graph: { chatStore: stores.chatStore, graphStore: stores.graphStore } } : {}),
+						...(atlasPractice
+							? {
+									atlas: {
+										read: () => readAtlas(),
+										picks: () => atlasContextPicks(stores.chatStore.getChat(chatId)?.messages ?? []),
+									},
+								}
+							: {}),
 					},
 					agentOpts,
 				)
@@ -474,6 +503,7 @@ export async function handleChatInput(
 						// The registry drop's signal (2026-09-20): no live engine
 						// = no research tool in the teacher's registry.
 						searchAvailable,
+						...(circuitTeach ? { atlasStore: stores.atlasStore } : {}),
 					},
 					agentOpts,
 				)
@@ -492,6 +522,8 @@ export async function handleChatInput(
 						// knowledge graph through tools when the gate opens —
 						// graph master switch AND the agent.graphTools toggle.
 						...(graphToolsEnabled(effective) ? { graphStore: stores.graphStore } : {}),
+						// Read-only list. The write tool stays on the teacher.
+						...(circuitTeach ? { atlasStore: stores.atlasStore } : {}),
 					},
 					agentOpts,
 				);
@@ -641,7 +673,7 @@ export async function handleChatInput(
 								fresh.compaction?.thresholdTokens,
 								catalogContextLimits().get(kickModelId),
 							),
-							systemPromptTokens: Math.ceil(composeInstructions(freshRecord.kind === "practice" ? "practice" : "teacher").length / 4),
+							systemPromptTokens: estimatedSystemPromptTokens(freshRecord),
 						};
 					}, chatId);
 			},

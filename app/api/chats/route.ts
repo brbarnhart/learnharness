@@ -1,7 +1,6 @@
-import { chainsForSelection, formatChainLine } from "@/src/core";
-import { newGraphContextMessage, type GraphContextPick } from "@/src/core";
-import { compactionInFlight, createChat, isTurnRunning, listChats, readSettingsRecord, stores, titleFromPrompt } from "@/src/server";
-import type { ChatListItem } from "@/src/core";
+import { chainsForSelection, formatChainLine, newAtlasContextMessage, newGraphContextMessage, resolveAtlasPicks } from "@/src/core";
+import type { ChatListItem, GraphContextPick } from "@/src/core";
+import { compactionInFlight, createChat, isTurnRunning, listChats, readAtlas, readSettingsRecord, stores, titleFromPrompt } from "@/src/server";
 
 /** The session picker's list: record-derived summaries (phase, pending
  *  question) + live liveness — a running turn marks the session busy
@@ -20,12 +19,21 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-	const body = (await req.json().catch(() => ({}))) as { title?: unknown; kind?: unknown; graphContext?: unknown };
+	const body = (await req.json().catch(() => ({}))) as {
+		title?: unknown;
+		kind?: unknown;
+		domain?: unknown;
+		graphContext?: unknown;
+		atlasContext?: unknown;
+	};
 	const title = typeof body.title === "string" ? body.title : "";
 	// Practice sessions (owner, 2026-10-04): kind "practice" marks the
 	// record — the practice agent + its tools from turn 1, no extraction.
 	const kind = body.kind === "practice" ? ("practice" as const) : undefined;
-	const chat = createChat(titleFromPrompt(title || "Untitled session"), kind);
+	// Circuit lessons are teach sessions (docs/atlas.md). Practice is not
+	// one, so a domain posted with kind "practice" is dropped.
+	const domain = kind !== "practice" && body.domain === "circuit" ? ("circuit" as const) : undefined;
+	const chat = createChat(titleFromPrompt(title || "Untitled session"), kind, domain);
 	// PER-SESSION MODELS (owner, 2026-09-28): a session owns its model +
 	// thinking level from birth — stamped verbatim from the STRONG slot,
 	// the new-session default. From here the strong slot never reaches
@@ -46,6 +54,24 @@ export async function POST(req: Request) {
 	// message), carrying the picks plus the reasoning chains among them.
 	// The picks carry their own name/statement (what the learner saw at
 	// pick time); the chains derive from the CURRENT graph snapshot.
+	const atlasBody =
+		typeof body.atlasContext === "object" && body.atlasContext !== null
+			? (body.atlasContext as { pathwayIds?: unknown; populationIds?: unknown; moduleId?: unknown })
+			: undefined;
+	const pathwayIds = idList(atlasBody?.pathwayIds);
+	const populationIds = idList(atlasBody?.populationIds);
+	const moduleId = typeof atlasBody?.moduleId === "string" && atlasBody.moduleId.length > 0 ? atlasBody.moduleId : null;
+	// Atlas practice does not also take proposition picks. A circuit lesson
+	// seeded with a module does not take them either. Unknown atlas ids
+	// still count as a request, so a miss does not fall through to the graph.
+	const practiceAtlasRequested = kind === "practice" && (pathwayIds.length > 0 || populationIds.length > 0);
+	const teachAtlasRequested = domain === "circuit" && moduleId !== null;
+	if (practiceAtlasRequested || teachAtlasRequested) {
+		const atlasPicks = practiceAtlasRequested
+			? resolveAtlasPicks(readAtlas(), { pathwayIds, populationIds }, "practice")
+			: resolveAtlasPicks(readAtlas(), { moduleId }, "teach");
+		if (atlasPicks.length > 0) stores.chatStore.saveMessages(chat.id, [newAtlasContextMessage(atlasPicks)]);
+	}
 	const rawPicks = (body.graphContext as { propositions?: unknown } | undefined)?.propositions;
 	const picks: GraphContextPick[] = Array.isArray(rawPicks)
 		? rawPicks
@@ -59,7 +85,7 @@ export async function POST(req: Request) {
 					)
 					.slice(0, 64)
 			: [];
-	if (picks.length > 0) {
+	if (!practiceAtlasRequested && !teachAtlasRequested && picks.length > 0) {
 		const byId = new Map(stores.graphStore.readNodes().map((n) => [n.id, n]));
 		const pickedNodes = picks.map((p) => byId.get(p.id)).filter((n) => n !== undefined);
 		const chainLines = chainsForSelection(pickedNodes, stores.graphStore.readChains()).map((c) =>
@@ -68,4 +94,13 @@ export async function POST(req: Request) {
 		stores.chatStore.saveMessages(chat.id, [newGraphContextMessage(picks, chainLines)]);
 	}
 	return Response.json({ id: chat.id, title: chat.title });
+}
+
+function idList(raw: unknown): string[] {
+	if (!Array.isArray(raw)) return [];
+	const ids: string[] = [];
+	for (const item of raw) {
+		if (typeof item === "string" && item.length > 0 && !ids.includes(item)) ids.push(item);
+	}
+	return ids;
 }

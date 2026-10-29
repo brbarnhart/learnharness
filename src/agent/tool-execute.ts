@@ -237,14 +237,14 @@ export function questionResult(): AgentToolResult<null> {
  *  only QUESTION_TOOLS placeholders), because the learner's submissions
  *  arrive as MESSAGES, never as this call's result. terminate: true ends
  *  the turn at the pose; the commitment rides the call's arguments. */
-export function problemResult(): AgentToolResult<null> {
+export function problemResult(key?: string): AgentToolResult<null> {
+	const posed =
+		"Problem posed — the turn ends here; the learner's thinking traces and answer commits arrive as labeled messages.";
+	// The atlas key is model-facing only. details stays null, so the
+	// problem card keeps reading the call's statement.
+	const text = key ? `${posed}\n\nCommitted answer key:\n${key}` : posed;
 	return {
-		content: [
-			{
-				type: "text",
-				text: "Problem posed — the turn ends here; the learner's thinking traces and answer commits arrive as labeled messages.",
-			},
-		],
+		content: [{ type: "text", text }],
 		details: null,
 		terminate: true,
 	};

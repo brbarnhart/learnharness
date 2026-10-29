@@ -1,0 +1,128 @@
+{
+	"modules": [
+		{
+			"id": "mod_bg",
+			"name": "Basal ganglia",
+			"parentId": null,
+			"purpose": "Action selection through opposing pathways.",
+			"createdAt": "2026-10-24T00:00:00.000Z",
+			"updatedAt": "2026-10-24T00:00:00.000Z",
+			"provenance": [{ "chatId": "chat_fixture", "messageId": "m1" }]
+		},
+		{
+			"id": "mod_thal",
+			"name": "Thalamus",
+			"parentId": null,
+			"purpose": "Relays basal ganglia output toward cortex.",
+			"createdAt": "2026-10-24T00:00:00.000Z",
+			"updatedAt": "2026-10-24T00:00:00.000Z",
+			"provenance": [{ "chatId": "chat_fixture", "messageId": "m1" }]
+		}
+	],
+	"populations": [
+		{
+			"id": "pop_dsn",
+			"name": "Direct-pathway MSNs",
+			"moduleId": "mod_bg",
+			"createdAt": "2026-10-24T00:00:00.000Z",
+			"updatedAt": "2026-10-24T00:00:00.000Z",
+			"provenance": [{ "chatId": "chat_fixture", "messageId": "m1" }]
+		},
+		{
+			"id": "pop_gpi",
+			"name": "GPi",
+			"moduleId": "mod_bg",
+			"createdAt": "2026-10-24T00:00:00.000Z",
+			"updatedAt": "2026-10-24T00:00:00.000Z",
+			"provenance": [{ "chatId": "chat_fixture", "messageId": "m1" }]
+		},
+		{
+			"id": "pop_thal",
+			"name": "Thalamus",
+			"moduleId": "mod_thal",
+			"createdAt": "2026-10-24T00:00:00.000Z",
+			"updatedAt": "2026-10-24T00:00:00.000Z",
+			"provenance": [{ "chatId": "chat_fixture", "messageId": "m1" }]
+		},
+		{
+			"id": "pop_gpe",
+			"name": "GPe",
+			"moduleId": "mod_bg",
+			"createdAt": "2026-10-24T00:00:00.000Z",
+			"updatedAt": "2026-10-24T00:00:00.000Z",
+			"provenance": [{ "chatId": "chat_fixture", "messageId": "m1" }]
+		},
+		{
+			"id": "pop_stn",
+			"name": "STN",
+			"moduleId": "mod_bg",
+			"createdAt": "2026-10-24T00:00:00.000Z",
+			"updatedAt": "2026-10-24T00:00:00.000Z",
+			"provenance": [{ "chatId": "chat_fixture", "messageId": "m1" }]
+		}
+	],
+	"projections": [
+		{
+			"id": "prj_direct",
+			"name": "striatonigral",
+			"fromId": "pop_dsn",
+			"toId": "pop_gpi",
+			"sign": "inhibitory",
+			"feedback": false,
+			"createdAt": "2026-10-24T00:00:00.000Z",
+			"updatedAt": "2026-10-24T00:00:00.000Z",
+			"provenance": [{ "chatId": "chat_fixture", "messageId": "m1" }]
+		},
+		{
+			"id": "prj_out",
+			"name": "pallidothalamic",
+			"fromId": "pop_gpi",
+			"toId": "pop_thal",
+			"sign": "inhibitory",
+			"feedback": false,
+			"createdAt": "2026-10-24T00:00:00.000Z",
+			"updatedAt": "2026-10-24T00:00:00.000Z",
+			"provenance": [{ "chatId": "chat_fixture", "messageId": "m1" }]
+		},
+		{
+			"id": "prj_gpe_stn",
+			"name": "GPe to STN",
+			"fromId": "pop_gpe",
+			"toId": "pop_stn",
+			"sign": "inhibitory",
+			"feedback": false,
+			"createdAt": "2026-10-24T00:00:00.000Z",
+			"updatedAt": "2026-10-24T00:00:00.000Z",
+			"provenance": [{ "chatId": "chat_fixture", "messageId": "m1" }]
+		},
+		{
+			"id": "prj_stn_gpe",
+			"name": "STN to GPe",
+			"fromId": "pop_stn",
+			"toId": "pop_gpe",
+			"sign": "excitatory",
+			"feedback": true,
+			"createdAt": "2026-10-24T00:00:00.000Z",
+			"updatedAt": "2026-10-24T00:00:00.000Z",
+			"provenance": [{ "chatId": "chat_fixture", "messageId": "m1" }]
+		}
+	],
+	"pathways": [
+		{
+			"id": "pwy_direct",
+			"name": "direct pathway",
+			"projectionIds": ["prj_direct", "prj_out"],
+			"createdAt": "2026-10-24T00:00:00.000Z",
+			"updatedAt": "2026-10-24T00:00:00.000Z",
+			"provenance": [{ "chatId": "chat_fixture", "messageId": "m1" }]
+		},
+		{
+			"id": "pwy_loop",
+			"name": "STN-GPe loop",
+			"projectionIds": ["prj_gpe_stn", "prj_stn_gpe"],
+			"createdAt": "2026-10-24T00:00:00.000Z",
+			"updatedAt": "2026-10-24T00:00:00.000Z",
+			"provenance": [{ "chatId": "chat_fixture", "messageId": "m1" }]
+		}
+	]
+}

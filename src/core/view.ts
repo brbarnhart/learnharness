@@ -381,6 +381,16 @@ function projectMarker(marker: LhMarkerMessage, out: LhViewMessage[]): void {
 			});
 			return;
 		}
+		case "atlas-context": {
+			// Circuit lesson seed or atlas practice picks. The card renders
+			// names from details. The model reads the marker content.
+			out.push({
+				id: marker.id,
+				role: "user",
+				parts: [{ type: "data-atlas-context", id: `ac_${marker.id}`, data: marker.details }],
+			});
+			return;
+		}
 		case "probe-handoff": {
 			out.push({
 				id: marker.id,

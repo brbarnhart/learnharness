@@ -9,6 +9,8 @@ System prompts are composed at agent construction (src/agent/teacher-agent.ts), 
 Rules for adding a fragment:
 
 - Name it with a numeric order prefix, inside the right agent directory.
+- `teacher/circuit.md` is the exception. It has no numeric prefix, so the loader never picks it up. `composeInstructions` appends it only for a teacher whose chat domain is `circuit`. Do not rename it onto a numeric prefix.
+- `practice/atlas.md` is the same kind of exception. `composeInstructions` appends it only for a practice session whose record carries an atlas-context marker. Do not rename it onto a numeric prefix.
 - `shared/` fragments compose into BOTH agents (after the base and their own
   fragments — a trailing appendix): cross-agent doctrine only, phase-neutral by
   construction: `20-question-tools.md` (tool MECHANICS only; what to ask is each

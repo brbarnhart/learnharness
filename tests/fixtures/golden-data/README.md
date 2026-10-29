@@ -25,6 +25,9 @@ core tool surface must appear in real data here.
   2026-10-10): graph-context (the bracketed preamble), problem ×2,
   practice-thinking ×2, conclude ×2, practice-next, problem-dismissed — the
   full marker cycle of a practice session, including the dismissal.
+- `chats/chat_atlas_context_marker.json` — an atlas-context marker written
+  by the chat store, so the marker-coverage law can see that custom type.
+  It names one example record and carries no pathway steps.
 - `graph/` — the real ledgers: nodes (282 lines), chains (160), sessions (8),
   coverage (93), sources (4), render-settings, positions.
 - `jobs/` — five records covering kind × status: research done + aborted by
